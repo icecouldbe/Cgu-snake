@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>長庚像素貪吃蛇</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1b1230; --panel:#2a1d4a; --edge:#0f0a1c; --ink:#fff4d6;
+    --accent:#ffd23f; --pink:#ff6b9d; --green:#4cc36b; --red:#e63946;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:'DotGothic16','Noto Sans TC','PingFang TC','Microsoft JhengHei',monospace;}
+  body{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:14px 12px 28px;
+    background:
+      linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px) 0 0/16px 16px,
+      linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px) 0 0/16px 16px,
+      var(--bg);}
+  h1{margin:4px 0 2px;font-size:clamp(22px,6vw,32px);color:var(--accent);
+    text-shadow:3px 3px 0 var(--edge),0 0 14px rgba(255,210,63,.35);letter-spacing:2px;text-align:center}
+  .sub{margin:0 0 10px;font-size:13px;opacity:.75;text-align:center}
+  .px{border:4px solid var(--edge);box-shadow:0 0 0 4px var(--panel),6px 6px 0 4px var(--edge);}
+  .wrap{width:min(92vw,440px)}
+  .hud{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 16px}
+  .hud div{background:var(--panel);padding:6px 4px;text-align:center;border:3px solid var(--edge);font-size:12px}
+  .hud b{display:block;font-size:20px;color:var(--accent);font-weight:normal;margin-top:2px}
+  .stage{position:relative;line-height:0}
+  canvas{width:100%;height:auto;image-rendering:pixelated;display:block;background:#150e26;touch-action:none}
+  .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:10px;background:rgba(15,10,28,.82);text-align:center;padding:16px;line-height:1.5}
+  .overlay.hide{display:none}
+  .overlay h2{margin:0;font-size:clamp(22px,6vw,30px);color:var(--accent);text-shadow:2px 2px 0 var(--edge)}
+  .overlay p{margin:0;font-size:14px;max-width:300px}
+  button,select{font:inherit;color:var(--ink);cursor:pointer}
+  .btn{background:var(--pink);border:3px solid var(--edge);box-shadow:0 4px 0 var(--edge);
+    padding:8px 18px;font-size:16px;transition:transform .05s}
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--edge)}
+  .btn.alt{background:var(--panel)}
+  .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px;align-items:center}
+  select{background:var(--panel);border:3px solid var(--edge);padding:7px 8px;font-size:14px}
+  .toast{height:22px;margin-top:12px;text-align:center;font-size:14px;color:var(--accent)}
+  .pad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(2,56px);gap:6px;
+    justify-content:center;margin:12px auto 0}
+  .pad button{background:var(--panel);border:3px solid var(--edge);box-shadow:0 4px 0 var(--edge);font-size:22px}
+  .pad button:active{background:var(--pink);transform:translateY(3px);box-shadow:0 1px 0 var(--edge)}
+  .pad .up{grid-column:2;grid-row:1}
+  .pad .left{grid-column:1;grid-row:2}
+  .pad .down{grid-column:2;grid-row:2}
+  .pad .right{grid-column:3;grid-row:2}
+  .legend{margin-top:22px;background:var(--panel);padding:12px 14px;font-size:13px;line-height:1.9}
+  .legend h3{margin:0 0 4px;font-size:15px;color:var(--accent)}
+  .legend canvas{width:20px;height:20px;display:inline-block;vertical-align:middle;margin-right:6px;background:transparent}
+  footer{margin-top:18px;font-size:12px;opacity:.6;text-align:center}
+  @media (min-width:700px){ .pad{display:none} }
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+  <h1>長庚像素貪吃蛇</h1>
+  <p class="sub">吃珍奶、躲期中考，看你能活過幾週！</p>
+
+  <div class="wrap">
+    <div class="hud px">
+      <div>分數<b id="score">0</b></div>
+      <div>最高分<b id="best">0</b></div>
+      <div>週次<b id="level">1</b></div>
+    </div>
+
+    <div class="stage px">
+      <canvas id="game" aria-label="貪吃蛇遊戲畫面"></canvas>
+      <div id="overlay" class="overlay">
+        <h2 id="ovTitle">準備好了嗎？</h2>
+        <p id="ovText">用方向鍵或 WASD 控制方向<br>手機可滑動畫面或按下方按鈕</p>
+        <button id="ovBtn" class="btn">開始遊戲</button>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="row">
+      <select id="diff" aria-label="難度">
+        <option value="easy">難度：悠閒</option>
+        <option value="normal" selected>難度：普通</option>
+        <option value="hard">難度：地獄</option>
+      </select>
+      <button id="pauseBtn" class="btn alt">暫停</button>
+      <button id="muteBtn" class="btn alt">音效：開</button>
+    </div>
+
+    <div class="pad" aria-label="方向按鈕">
+      <button class="up" data-d="up" aria-label="上">▲</button>
+      <button class="left" data-d="left" aria-label="左">◀</button>
+      <button class="down" data-d="down" aria-label="下">▼</button>
+      <button class="right" data-d="right" aria-label="右">▶</button>
+    </div>
+
+    <div class="legend px">
+      <h3>遊戲規則</h3>
+      <div><canvas id="ic-tea" width="20" height="20"></canvas>珍珠奶茶 +10 分，蛇會變長</div>
+      <div><canvas id="ic-chicken" width="20" height="20"></canvas>雞排 +30 分（限時出現，會閃爍消失）</div>
+      <div><canvas id="ic-exam" width="20" height="20"></canvas>期中考卷：碰到就 Game Over，每過一週多出 2 張</div>
+      <div>每吃 5 杯珍奶進入下一週，速度也會變快。撞牆或咬到自己也會結束。</div>
+      <div>快捷鍵：空白鍵／P 暫停，Enter 開始或重來。</div>
+    </div>
+
+    <footer>以 Vibe Coding 製作 ・ 單一 index.html</footer>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+  const N = 20, C = 20;                       // 20x20 格，每格 20px
+  const cv = document.getElementById('game');
+  const ctx = cv.getContext('2d');
+  cv.width = cv.height = N * C;
+
+  /* ---------- 像素圖（10x10，每個點 2px） ---------- */
+  const PAL = {K:'#2b1b17',W:'#fff8e7',c:'#d9a066',b:'#3b2a2a',p:'#ff6b9d',y:'#ffd23f',o:'#c8772a',r:'#e63946'};
+  const SPR = {
+    tea: [
+      '.....pp...','.....p....','..KKKKKK..','..KWWWWK..','..KccccK..',
+      '..KccccK..','..KcbbcK..','..KbbbbK..','...KKKK...','..........'],
+    chicken: [
+      '..........','..KKKKKK..','.KooyyooK.','KooyoyooyK','KoyooyyooK',
+      'KooyyooyoK','.KoooyooK.','..KKKKKK..','..........','..........'],
+    exam: [
+      'KKKKKKKKK.','KWWWWWWWK.','KWrrrWWWK.','KWWWWWWWK.','KWbbbbbWK.',
+      'KWWWWWWWK.','KWbbbbWWK.','KWWWWWWWK.','KKKKKKKKK.','..........']
+  };
+  function sprite(g, name, px, py, size = C) {
+    const s = SPR[name], u = size / 10;
+    for (let r = 0; r < 10; r++) for (let c = 0; c < 10; c++) {
+      const ch = s[r][c];
+      if (ch !== '.') { g.fillStyle = PAL[ch]; g.fillRect(px + c * u, py + r * u, u, u); }
+    }
+  }
+  ['tea','chicken','exam'].forEach(n => {
+    const el = document.getElementById('ic-' + n);
+    sprite(el.getContext('2d'), n, 0, 0, 20);
+  });
+
+  /* ---------- 設定 ---------- */
+  const DIFF = { easy: 170, normal: 125, hard: 85 };   // 起始每步毫秒
+  const $ = id => document.getElementById(id);
+  const el = { score:$('score'), best:$('best'), level:$('level'), overlay:$('overlay'),
+    ovTitle:$('ovTitle'), ovText:$('ovText'), ovBtn:$('ovBtn'), diff:$('diff'),
+    pause:$('pauseBtn'), mute:$('muteBtn'), toast:$('toast') };
+
+  /* ---------- 存檔（localStorage 可能被禁用，所以包 try/catch） ---------- */
+  const hiKey = () => 'cgu-snake-best-' + el.diff.value;
+  function loadBest() { try { return +localStorage.getItem(hiKey()) || 0; } catch (e) { return 0; } }
+  function saveBest(v) { try { localStorage.setItem(hiKey(), v); } catch (e) {} }
+
+  /* ---------- 音效 ---------- */
+  let audio = null, muted = false;
+  function beep(freq, dur = .08, type = 'square', vol = .06, slide = 0) {
+    if (muted) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.type = type; o.frequency.value = freq;
+      if (slide) o.frequency.linearRampToValueAtTime(freq + slide, audio.currentTime + dur);
+      g.gain.value = vol; g.gain.exponentialRampToValueAtTime(.0001, audio.currentTime + dur);
+      o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + dur);
+    } catch (e) {}
+  }
+  const sfx = {
+    eat:  () => { beep(660, .07); setTimeout(() => beep(880, .08), 70); },
+    gold: () => { [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, .09), i * 70)); },
+    level:() => { [440, 554, 660, 880].forEach((f, i) => setTimeout(() => beep(f, .1), i * 90)); },
+    die:  () => beep(300, .5, 'sawtooth', .08, -250)
+  };
+
+  /* ---------- 遊戲狀態 ---------- */
+  let st;
+  const same = (a, b) => a && b && a.x === b.x && a.y === b.y;
+  function occupied(x, y) {
+    const p = { x, y };
+    return st.snake.some(s => same(s, p)) || same(st.tea, p) || same(st.chicken, p) || st.obs.some(o => same(o, p));
+  }
+  function randomFree(minDist = 0) {
+    for (let i = 0; i < 600; i++) {
+      const x = Math.floor(Math.random() * N), y = Math.floor(Math.random() * N);
+      if (occupied(x, y)) continue;
+      const h = st.snake[0];
+      if (Math.abs(h.x - x) + Math.abs(h.y - y) < minDist) continue;
+      return { x, y };
+    }
+    return null;
+  }
+  function reset() {
+    st = { snake: [{x:10,y:10},{x:9,y:10},{x:8,y:10}], dir: {x:1,y:0}, queue: [],
+      tea: null, chicken: null, obs: [], score: 0, eaten: 0, level: 1, mode: 'ready', flash: 0 };
+    st.tea = randomFree();
+    updateHud();
+  }
+  function updateHud() {
+    el.score.textContent = st.score; el.level.textContent = st.level; el.best.textContent = loadBest();
+  }
+  function interval() { return Math.max(50, DIFF[el.diff.value] - (st.level - 1) * 8); }
+
+  /* ---------- 提示字 ---------- */
+  let toastTimer;
+  function toast(msg) {
+    el.toast.textContent = msg; clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.textContent = '', 2200);
+  }
+
+  /* ---------- 覆蓋層 ---------- */
+  function showOverlay(title, text, btn) {
+    el.ovTitle.textContent = title; el.ovText.innerHTML = text; el.ovBtn.textContent = btn;
+    el.overlay.classList.remove('hide');
+  }
+  const hideOverlay = () => el.overlay.classList.add('hide');
+
+  /* ---------- 控制 ---------- */
+  function start() {
+    if (st.mode === 'over' || st.mode === 'ready') { reset(); }
+    st.mode = 'play'; hideOverlay(); el.diff.disabled = true; el.pause.textContent = '暫停';
+    beep(520, .06);
+  }
+  function pause() {
+    if (st.mode === 'play') {
+      st.mode = 'pause'; el.pause.textContent = '繼續';
+      showOverlay('暫停中', '按空白鍵或「繼續」回到遊戲', '繼續');
+    } else if (st.mode === 'pause') {
+      st.mode = 'play'; hideOverlay(); el.pause.textContent = '暫停';
+    }
+  }
+  function setDir(dx, dy) {
+    if (st.mode !== 'play') return;
+    const ref = st.queue.length ? st.queue[st.queue.length - 1] : st.dir;
+    if ((ref.x === -dx && ref.y === -dy) || (ref.x === dx && ref.y === dy)) return;
+    if (st.queue.length < 2) st.queue.push({ x: dx, y: dy });
+  }
+  const DIRS = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
+
+  document.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    const map = { arrowup:'up', w:'up', arrowdown:'down', s:'down', arrowleft:'left', a:'left', arrowright:'right', d:'right' };
+    if (map[k]) { e.preventDefault(); setDir(...DIRS[map[k]]); }
+    else if (k === ' ' || k === 'p') { e.preventDefault(); if (st.mode === 'play' || st.mode === 'pause') pause(); else start(); }
+    else if (k === 'enter') { e.preventDefault(); if (st.mode === 'pause') pause(); else if (st.mode !== 'play') start(); }
+  });
+  document.querySelectorAll('.pad button').forEach(b => {
+    const go = e => { e.preventDefault(); setDir(...DIRS[b.dataset.d]); };
+    b.addEventListener('touchstart', go, { passive: false });
+    b.addEventListener('mousedown', go);
+  });
+  // 滑動操作
+  let tx = 0, ty = 0;
+  cv.addEventListener('touchstart', e => { const t = e.touches[0]; tx = t.clientX; ty = t.clientY; }, { passive: true });
+  cv.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  cv.addEventListener('touchend', e => {
+    const t = e.changedTouches[0], dx = t.clientX - tx, dy = t.clientY - ty;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) return;
+    if (Math.abs(dx) > Math.abs(dy)) setDir(dx > 0 ? 1 : -1, 0); else setDir(0, dy > 0 ? 1 : -1);
+  });
+  el.ovBtn.addEventListener('click', () => { st.mode === 'pause' ? pause() : start(); });
+  el.pause.addEventListener('click', () => { if (st.mode === 'play' || st.mode === 'pause') pause(); });
+  el.mute.addEventListener('click', () => {
+    muted = !muted; el.mute.textContent = '音效：' + (muted ? '關' : '開'); if (!muted) beep(700, .06);
+  });
+  el.diff.addEventListener('change', () => { reset(); showOverlay('準備好了嗎？', '難度已切換，按下開始吧', '開始遊戲'); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && st.mode === 'play') pause(); });
+
+  /* ---------- 遊戲邏輯：每一步 ---------- */
+  function die() {
+    st.mode = 'over'; st.flash = 12; sfx.die();
+    let newBest = false;
+    if (st.score > loadBest()) { saveBest(st.score); newBest = true; }
+    el.diff.disabled = false; updateHud();
+    const msgs = ['期中考把你擊倒了…', '你被當掉了！', '去喝杯珍奶冷靜一下吧', '再撐一週就好了！', '學霸等級的操作！'];
+    const idx = st.score < 30 ? 0 : st.score < 80 ? 1 : st.score < 150 ? 2 : st.score < 250 ? 3 : 4;
+    setTimeout(() => showOverlay('GAME OVER',
+      `${msgs[idx]}<br>分數：${st.score}　撐到第 ${st.level} 週` + (newBest ? '<br>🎉 新紀錄！' : ''), '再來一次'), 450);
+  }
+  function step() {
+    if (st.queue.length) st.dir = st.queue.shift();
+    const h = st.snake[0], head = { x: h.x + st.dir.x, y: h.y + st.dir.y };
+    if (head.x < 0 || head.y < 0 || head.x >= N || head.y >= N) return die();
+    const grow = same(head, st.tea) || same(head, st.chicken);
+    const body = grow ? st.snake : st.snake.slice(0, -1);
+    if (body.some(s => same(s, head)) || st.obs.some(o => same(o, head))) return die();
+    st.snake.unshift(head);
+
+    if (same(head, st.tea)) {
+      st.score += 10; st.eaten++; sfx.eat();
+      st.tea = randomFree();
+      if (!st.chicken && Math.random() < 0.3) {
+        const c = randomFree(3);
+        if (c) { st.chicken = { ...c, ttl: 60 }; toast('雞排出現了！快吃！'); }
+      }
+      const lv = 1 + Math.floor(st.eaten / 5);
+      if (lv > st.level) {
+        st.level = lv; sfx.level();
+        for (let i = 0; i < 2 && st.obs.length < 12; i++) { const o = randomFree(5); if (o) st.obs.push(o); }
+        toast(`第 ${lv} 週！期中考卷變多了`);
+      }
+      updateHud();
+    } else if (same(head, st.chicken)) {
+      st.score += 30; st.chicken = null; sfx.gold(); updateHud();
+    } else {
+      st.snake.pop();
+    }
+    if (st.chicken && --st.chicken.ttl <= 0) st.chicken = null;
+  }
+
+  /* ---------- 繪圖 ---------- */
+  function draw(t) {
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      ctx.fillStyle = (x + y) % 2 ? '#1d1433' : '#241a3d';
+      ctx.fillRect(x * C, y * C, C, C);
+    }
+    st.obs.forEach(o => sprite(ctx, 'exam', o.x * C, o.y * C));
+    if (st.tea) sprite(ctx, 'tea', st.tea.x * C, st.tea.y * C);
+    if (st.chicken && (st.chicken.ttl > 18 || Math.floor(t / 150) % 2)) sprite(ctx, 'chicken', st.chicken.x * C, st.chicken.y * C);
+
+    st.snake.forEach((s, i) => {
+      const dead = st.mode === 'over' && st.flash % 2 === 1;
+      ctx.fillStyle = '#0f3d20'; ctx.fillRect(s.x * C, s.y * C, C, C);
+      ctx.fillStyle = dead ? '#e63946' : (i === 0 ? '#8cf0a0' : (i % 2 ? '#4cc36b' : '#3fb35e'));
+      ctx.fillRect(s.x * C + 2, s.y * C + 2, C - 4, C - 4);
+    });
+    // 眼睛
+    const h = st.snake[0], d = st.dir, ex = h.x * C + 10, ey = h.y * C + 10;
+    ctx.fillStyle = '#1b1230';
+    if (d.x) { ctx.fillRect(ex + d.x * 3 - 1, ey - 5, 3, 3); ctx.fillRect(ex + d.x * 3 - 1, ey + 2, 3, 3); }
+    else     { ctx.fillRect(ex - 5, ey + d.y * 3 - 1, 3, 3); ctx.fillRect(ex + 2, ey + d.y * 3 - 1, 3, 3); }
+    if (st.mode === 'over' && st.flash > 0 && t % 60 < 20) st.flash--;
+  }
+
+  /* ---------- 主迴圈 ---------- */
+  let last = 0, acc = 0;
+  function frame(t) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(100, t - last); last = t;
+    if (st.mode === 'play') {
+      acc += dt;
+      const iv = interval();
+      while (acc >= iv) { acc -= iv; step(); if (st.mode !== 'play') break; }
+    } else acc = 0;
+    draw(t);
+  }
+
+  el.best.textContent = loadBest();
+  reset();
+  requestAnimationFrame(frame);
+  window.__game = { get state() { return st; }, step }; // 方便除錯
+})();
+</script>
+</body>
+</html>
